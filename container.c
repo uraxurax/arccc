@@ -1,21 +1,63 @@
 #include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+#include <ctype.h>
 #include "arccc.h"
 
-Node *new_node(NodeKind kind) {
-  Node *node = calloc(1, sizeof(Node));
-  node->kind = kind;
-  return node;
+// 新しいトークンを作成してcurに繋げる
+Token *new_token(TokenKind kind, Token *cur, char *str, int len) {
+  Token *tok = calloc(1, sizeof(Token));
+  tok->kind = kind;
+  tok->str = str;
+  tok->len = len;
+  cur->next = tok;
+  return tok;
 }
 
-Node *new_binary(NodeKind kind, Node *lhs, Node *rhs) {
-  Node *node = new_node(kind);
-  node->lhs = lhs;
-  node->rhs = rhs;
-  return node;
+bool startswith(char *p, char *q) {
+  return memcmp(p, q, strlen(q)) == 0;
 }
 
-Node *new_num(int val) {
-  Node *node = new_node(ND_NUM);
-  node->val = val;
-  return node;
+
+// 入力文字列pをトークナイズしてそれを返す
+Token *tokenize(void) {
+  Token head;
+  head.next = NULL;
+  Token *cur = &head;
+  char *p = user_input;
+
+  while (*p) {
+    // 空白文字をスキップ
+    if (isspace(*p)) {
+      p++;
+      continue;
+    }
+    if (startswith(p, "==") || startswith(p, "!=") || 
+        startswith(p, "<=") || startswith(p, ">=") ) {
+
+      cur = new_token(TK_RESERVED, cur, p, 2);
+      p += 2;
+      continue;
+    }
+    if (strchr("+-*/()<>=;" ,*p)) {
+      cur = new_token(TK_RESERVED, cur, p++, 1);
+      continue;
+    }
+    if ('a' <= *p && *p <= 'z') {
+      cur = new_token(TK_IDENT, cur, p++, 1);
+      continue;
+    }
+
+    if (isdigit(*p)) {
+      cur = new_token(TK_NUM, cur, p, 0);
+      char *q = p;
+      cur->val = strtol(p, &p, 10);
+      cur->len = p - q;
+      continue;
+    }
+    error_at(p, "トークナイズできません");
+  }
+
+  new_token(TK_EOF, cur, p, 0);
+  return head.next;
 }

@@ -12,7 +12,8 @@ char *user_input;
 
 // エラーを報告するための関数
 // printfと同じ引数を取る
-void error(char *fmt, ...) {
+void error(char *fmt, ...)
+{
   va_list ap;
   va_start(ap, fmt);
   vfprintf(stderr, fmt, ap);
@@ -20,9 +21,9 @@ void error(char *fmt, ...) {
   exit(1);
 }
 
-
 // エラー箇所を報告する
-void error_at(char *loc, char *fmt, ...) {
+void error_at(char *loc, char *fmt, ...)
+{
   va_list ap;
   va_start(ap, fmt);
 
@@ -35,71 +36,10 @@ void error_at(char *loc, char *fmt, ...) {
   exit(1);
 }
 
-
-
-
-bool at_eof() {
-  return token->kind == TK_EOF;
-}
-
-// 新しいトークンを作成してcurに繋げる
-Token *new_token(TokenKind kind, Token *cur, char *str, int len) {
-  Token *tok = calloc(1, sizeof(Token));
-  tok->kind = kind;
-  tok->str = str;
-  tok->len = len;
-  cur->next = tok;
-  return tok;
-}
-
-bool startswith(char *p, char *q) {
-  return memcmp(p, q, strlen(q)) == 0;
-}
-
-// 入力文字列pをトークナイズしてそれを返す
-Token *tokenize(void) {
-  Token head;
-  head.next = NULL;
-  Token *cur = &head;
-  char *p = user_input;
-
-  while (*p) {
-    // 空白文字をスキップ
-    if (isspace(*p)) {
-      p++;
-      continue;
-    }
-    if (startswith(p, "==") || startswith(p, "!=") || 
-        startswith(p, "<=") || startswith(p, ">=") ) {
-
-      cur = new_token(TK_RESERVED, cur, p, 2);
-      p += 2;
-      continue;
-    }
-    if (strchr("+-*/()<>" ,*p)) {
-      cur = new_token(TK_RESERVED, cur, p++, 1);
-      continue;
-    }
-
-    if (isdigit(*p)) {
-      cur = new_token(TK_NUM, cur, p, 0);
-      char *q = p;
-      cur->val = strtol(p, &p, 10);
-      cur->len = p - q;
-      continue;
-    }
-    error_at(p, "トークナイズできません");
-  }
-
-  new_token(TK_EOF, cur, p, 0);
-  return head.next;
-}
-
-
-
-
-int main(int argc, char **argv) {
-  if (argc != 2) {
+int main(int argc, char **argv)
+{
+  if (argc != 2)
+  {
     error("引数の個数が正しくありません");
     return 1;
   }
@@ -107,19 +47,34 @@ int main(int argc, char **argv) {
   // トークナイズしてパースする
   user_input = argv[1];
   token = tokenize();
-  Node *node = expr();
+  program();
+  // Node* node = stmt();
 
   // アセンブリの前半部分を出力
   printf(".intel_syntax noprefix\n");
   printf(".global main\n");
   printf("main:\n");
 
-  // 抽象構文木を下りながらコード生成
-  gen(node);
+  // プロローグ
+  // 変数26個分の領域を確保する
+  printf("  push rbp\n");
+  printf("  mov rbp, rsp\n");
+  printf("  sub rsp, 208\n");
 
-  // スタックトップに式全体の値が残っているはずなので
-  // それをRAXにロードして関数からの返り値とする
-  printf("  pop rax\n");
+  // 抽象構文木を下りながらコード生成
+    // 先頭の式から順にコード生成
+  for (int i = 0; code[i]; i++) {
+    gen(code[i]);
+
+    // 式の評価結果としてスタックに一つの値が残っている
+    // はずなので、スタックが溢れないようにポップしておく
+    printf("  pop rax\n");
+  }
+  
+  // エピローグ
+  // 最後の式の結果がRAXに残っているのでそれが返り値になる
+  printf("  mov rsp, rbp\n");
+  printf("  pop rbp\n");
   printf("  ret\n");
   return 0;
 }

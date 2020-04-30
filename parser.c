@@ -1,18 +1,48 @@
+#include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include "arccc.h"
 
-Node *equality();
-Node *relational();
-Node *add();
-Node *mul();
-Node *unary();
-Node *primary();
 
+
+Node *code[100];
+
+Node *expr();
+Node *primary();
+// Node *equality();
+// Node *relational();
+// Node *add();
+// Node *mul();
+// Node *unary();
+// 
+
+
+Node *new_node(NodeKind kind)
+{
+  Node *node = calloc(1, sizeof(Node));
+  node->kind = kind;
+  return node;
+}
+
+Node *new_binary(NodeKind kind, Node *lhs, Node *rhs)
+{
+  Node *node = new_node(kind);
+  node->lhs = lhs;
+  node->rhs = rhs;
+  return node;
+}
+
+Node *new_num(int val)
+{
+  Node *node = new_node(ND_NUM);
+  node->val = val;
+  return node;
+}
 
 // 次のトークンが期待している記号のときには、トークンを1つ読み進めて
 // 真を返す。それ以外の場合には偽を返す。
-bool consume(char *op) {
+bool consume(char *op)
+{
   if (token->kind != TK_RESERVED ||
       strlen(op) != token->len ||
       memcmp(token->str, op, token->len))
@@ -21,9 +51,19 @@ bool consume(char *op) {
   return true;
 }
 
+Token* consume_ident()
+{
+  if (token->kind != TK_IDENT)
+    return NULL;
+  Token* rettoken = token;
+  token = token->next;
+  return rettoken;
+}
+
 // 次のトークンが期待している記号のときには、トークンを1つ読み進める。
 // それ以外の場合にはエラーを報告する。
-void expect(char *op) {
+void expect(char *op)
+{
   if (token->kind != TK_RESERVED || strlen(op) != token->len ||
       memcmp(token->str, op, token->len))
     error_at(token->str, "'expected \"%s\"", op);
@@ -32,7 +72,8 @@ void expect(char *op) {
 
 // 次のトークンが数値の場合、トークンを1つ読み進めてその数値を返す。
 // それ以外の場合にはエラーを報告する。
-int expect_number() {
+int expect_number()
+{
   if (token->kind != TK_NUM)
     error_at(token->str, "数ではありません");
   int val = token->val;
@@ -40,27 +81,74 @@ int expect_number() {
   return val;
 }
 
-Node *expr() {
-  return equality();
+bool at_eof() {
+  return token->kind == TK_EOF;
 }
 
-Node *equality() {
-  Node *node = relational();
+Node *primary()
+{
+  // 次のトークンが"("なら、"(" expr ")"のはず
+  if (consume("("))
+  {
+    Node *node = expr();
+    expect(")");
+    return node;
+  }
+  Token *tok = consume_ident();
+  if (tok) {
+    Node *node = calloc(1, sizeof(Node));
+    node->kind = ND_LVAR;
+    node->offset = (tok->str[0] - 'a' + 1) * 8;
+    return node;
+  }
+  return new_num(expect_number());
+}
 
-  for (;;) {
-    if (consume("=="))
-      node = new_binary(ND_EQ, node, relational());
-    else if (consume("!="))
-      node = new_binary(ND_NE, node, relational());
+Node *unary()
+{
+  if (consume("+"))
+    return unary();
+  if (consume("-"))
+    return new_binary(ND_SUB, new_num(0), unary());
+  return primary();
+}
+
+Node *mul()
+{
+  Node *node = unary();
+
+  for (;;)
+  {
+    if (consume("*"))
+      node = new_binary(ND_MUL, node, unary());
+    else if (consume("/"))
+      node = new_binary(ND_DIV, node, unary());
     else
       return node;
   }
 }
 
-Node *relational() {
+Node *add()
+{
+  Node *node = mul();
+
+  for (;;)
+  {
+    if (consume("+"))
+      node = new_binary(ND_ADD, node, mul());
+    else if (consume("-"))
+      node = new_binary(ND_SUB, node, mul());
+    else
+      return node;
+  }
+}
+
+Node *relational()
+{
   Node *node = add();
 
-  for (;;) {
+  for (;;)
+  {
     if (consume("<"))
       node = new_binary(ND_LT, node, add());
     else if (consume("<="))
@@ -74,48 +162,45 @@ Node *relational() {
   }
 }
 
-Node *add() {
-  Node *node = mul();
+Node *equality()
+{
+  Node *node = relational();
 
-  for (;;) {
-    if (consume("+"))
-      node = new_binary(ND_ADD, node, mul());
-    else if (consume("-"))
-      node = new_binary(ND_SUB, node, mul());
+  for (;;)
+  {
+    if (consume("=="))
+      node = new_binary(ND_EQ, node, relational());
+    else if (consume("!="))
+      node = new_binary(ND_NE, node, relational());
     else
       return node;
   }
 }
 
-Node *mul() {
-  Node *node = unary();
-
-  for (;;) {
-    if (consume("*"))
-      node = new_binary(ND_MUL, node, unary());
-    else if (consume("/"))
-      node = new_binary(ND_DIV, node, unary());
-    else
-      return node;
-  }
+Node *assign()
+{
+  Node *node = equality();
+  if (consume("="))
+    node = new_binary(ND_ASSIGN, node, assign());
+  return node;
 }
 
-Node *unary() {
-  if (consume("+"))
-    return unary();
-  if (consume("-"))
-    return new_binary(ND_SUB, new_num(0), unary());
-  return primary();
+Node *expr()
+{
+  return assign();
 }
 
-Node *primary() {
-  // 次のトークンが"("なら、"(" expr ")"のはず
-  if (consume("(")) {
-    Node *node = expr();
-    expect(")");
-    return node;
-  }
+Node *stmt()
+{
+  Node *node = expr();
+  expect(";");
+  return node;
+}
 
-  // そうでなければ数値のはず
-  return new_num(expect_number());
+void program()
+{
+  int i = 0;
+  while (!at_eof())
+    code[i++] = stmt();
+  code[i] = NULL;
 }
