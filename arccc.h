@@ -47,6 +47,16 @@ struct Node {
   int len;       // kindがND_LVAR
 };
 
+typedef struct LVar LVar;
+
+// ローカル変数の型
+struct LVar {
+  LVar *next; // 次の変数かNULL
+  char *name; // 変数の名前
+  int len;    // 名前の長さ
+  int offset; // RBPからのオフセット
+};
+
 // 現在着目しているトークン
 extern Token *token;
 // 入力プログラム
@@ -54,9 +64,10 @@ extern char *user_input;
 
 extern Node *code[100];
 
+// ローカル変数
+extern LVar *locals;
+
 void program();
-Node* stmt();
-Node* expr();
 
 void gen(Node *node);
 
