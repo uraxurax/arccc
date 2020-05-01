@@ -6,16 +6,12 @@
 
 
 Node *code[100];
+// ローカル変数
+LVar termLvar;
+LVar *locals = &termLvar;
 
 Node *expr();
 Node *primary();
-// Node *equality();
-// Node *relational();
-// Node *add();
-// Node *mul();
-// Node *unary();
-// 
-
 
 Node *new_node(NodeKind kind)
 {
@@ -37,6 +33,14 @@ Node *new_num(int val)
   Node *node = new_node(ND_NUM);
   node->val = val;
   return node;
+}
+
+// 変数を名前で検索する。見つからなかった場合はNULLを返す。
+LVar *find_lvar(Token *tok) {
+  for (LVar *var = locals; var; var = var->next)
+    if (var->len == tok->len && !memcmp(tok->str, var->name, var->len))
+      return var;
+  return NULL;
 }
 
 // 次のトークンが期待している記号のときには、トークンを1つ読み進めて
@@ -98,7 +102,19 @@ Node *primary()
   if (tok) {
     Node *node = calloc(1, sizeof(Node));
     node->kind = ND_LVAR;
-    node->offset = (tok->str[0] - 'a' + 1) * 8;
+
+    LVar *lvar = find_lvar(tok);
+    if (lvar) {
+      node->offset = lvar->offset;
+    } else {
+      lvar = calloc(1, sizeof(LVar));
+      lvar->next = locals;
+      lvar->name = tok->str;
+      lvar->len = tok->len;
+      lvar->offset = locals->offset + 8;
+      node->offset = lvar->offset;
+      locals = lvar;
+    }
     return node;
   }
   return new_num(expect_number());
