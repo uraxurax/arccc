@@ -55,18 +55,13 @@ Token* tokenize(void) {
       cur = new_token(TK_RESERVED, cur, p++, 1);
       continue;
     }
-#if 0
-    if ('a' <= *p && *p <= 'z') {
-      cur = new_token(TK_IDENT, cur, p++, 1);
-    }
-#else
     if (get_ident_len(p)) {
       int len = get_ident_len(p);
       cur = new_token(TK_IDENT, cur, p, len);
       p += len;
       continue;
     }
-#endif
+
     if (isdigit(*p)) {
       cur = new_token(TK_NUM, cur, p, 0);
       char* q = p;
