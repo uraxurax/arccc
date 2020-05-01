@@ -15,6 +15,10 @@ Token* new_token(TokenKind kind, Token* cur, char* str, int len) {
   return tok;
 }
 
+bool is_alnum(char c){
+  return isalnum(c) || c == '_';
+}
+
 bool startswith(char* p, char* q) {
   return memcmp(p, q, strlen(q)) == 0;
 }
@@ -24,7 +28,7 @@ int get_ident_len(char* p) {
   if (isalpha(*p) || *p == '_') {
     len = 1;
     p++;
-    while (isalnum(*p) || *p == '_') {
+    while (is_alnum(*p)) {
       len++;
       p++;
     }
@@ -43,6 +47,12 @@ Token* tokenize(void) {
     // 空白文字をスキップ
     if (isspace(*p)) {
       p++;
+      continue;
+    }
+
+    if (strncmp(p, "return", 6) == 0 && !is_alnum(p[6])) {
+      cur = new_token(TK_RETURN, cur, p, 6);
+      p += 6;
       continue;
     }
     if (startswith(p, "==") || startswith(p, "!=") || startswith(p, "<=") ||
