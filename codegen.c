@@ -1,5 +1,8 @@
 #include "arccc.h"
 
+
+static int labelseq = 1;
+
 void gen_lval(Node* node) {
   if (node->kind != ND_LVAR)
     error("代入の左辺値が変数ではありません");
@@ -81,4 +84,42 @@ void gen(Node* node) {
       break;
   }
   printf("  push rax\n");
+}
+
+int get_lvar_num() {
+  int lvar_num = 0;
+  for (LVar* var = locals; var; var = var->next) {
+    lvar_num++;
+  }
+  return lvar_num;
+}
+
+void codegen(void) {
+    // アセンブリの前半部分を出力
+  printf(".intel_syntax noprefix\n");
+  printf(".global main\n");
+  printf("main:\n");
+
+  // プロローグ
+  // 変数26個分の領域を確保する
+  printf("  push rbp\n");
+  printf("  mov rbp, rsp\n");
+  printf("  sub rsp, %d\n", get_lvar_num() * 8);
+
+  // 抽象構文木を下りながらコード生成
+  // 先頭の式から順にコード生成
+  for (int i = 0; code[i]; i++) {
+    gen(code[i]);
+
+    // 式の評価結果としてスタックに一つの値が残っている
+    // はずなので、スタックが溢れないようにポップしておく
+    printf("  pop rax\n");
+  }
+
+  // エピローグ
+  // 最後の式の結果がRAXに残っているのでそれが返り値になる
+  printf("  mov rsp, rbp\n");
+  printf("  pop rbp\n");
+  printf("  ret\n");
+
 }

@@ -64,9 +64,9 @@ Token* consume_ident()
   return rettoken;
 }
 
-bool consume_return()
+bool consume_reserve(TokenKind kind)
 {
-  if (token->kind != TK_RETURN) return false;
+  if (token->kind != kind) return false;
   token = token->next;
   return true;
 }
@@ -217,7 +217,15 @@ Node *stmt()
 {
   Node *node;
 
-  if (consume_return()) {
+  if (consume_reserve(TK_IF)) {
+    node = calloc(1, sizeof(Node));
+    node->kind = ND_IF;
+    expect("(");
+    node->cond = expr();
+    expect(")");
+    
+
+  } else if (consume_reserve(TK_RETURN)) {
     node = calloc(1, sizeof(Node));
     node->kind = ND_RETURN;
     node->lhs = expr();
